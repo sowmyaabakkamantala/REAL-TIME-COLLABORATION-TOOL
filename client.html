@@ -1,0 +1,41 @@
+<!DOCTYPE html><body>
+<textarea id="editor" rows="15" cols="80"></textarea>
+<div>Online users: <span id="count">0</span></div>
+
+<script>
+const ws = new WebSocket("ws://localhost:8000/ws/ot");
+let version = 0;
+const editor = document.getElementById("editor");
+const count = document.getElementById("count");
+
+ws.onmessage = e => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === "init") {
+    version = msg.version;
+    editor.value = msg.document;
+    count.textContent = msg.clients;
+  } else if (msg.type === "presence") {
+    count.textContent = msg.count;
+  } else if (msg.type === "op") {
+    version = msg.version;
+    if (msg.type === "insert") {
+      const { pos, text } = msg;
+      editor.value = editor.value.slice(0, pos) + text + editor.value.slice(pos);
+    } else if (msg.type === "delete") {
+      const { pos, length } = msg;
+      editor.value = editor.value.slice(0, pos) + editor.value.slice(pos + length);
+    }
+  }
+};
+
+editor.addEventListener("input", e => {
+  const text = e.data;
+  const pos = editor.selectionStart - (text ? text.length : 0);
+  const op = text
+    ? { type: "op", op: "insert", pos, text, version }
+    : { type: "op", op: "delete", pos, length: 1, version };
+  ws.send(JSON.stringify(op));
+});
+</script>
+</body>
+
